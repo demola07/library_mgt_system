@@ -8,11 +8,25 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql://frontend_user:frontend_password@frontend_db:5432/frontend_db
+      - POSTGRES_USER=frontend_user
+      - POSTGRES_PASSWORD=frontend_password
+      - POSTGRES_SERVER=frontend_db
+      - POSTGRES_DB=frontend_db
       - REDIS_URL=redis://redis:6379/0
     depends_on:
-      - frontend_db
-      - redis
+      frontend_db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - backend
 
   admin_api:
     build:
@@ -21,39 +35,82 @@ services:
     ports:
       - "8001:8000"
     environment:
-      - DATABASE_URL=postgresql://admin_user:admin_password@admin_db:5432/admin_db
+      - POSTGRES_USER=admin_user
+      - POSTGRES_PASSWORD=admin_password
+      - POSTGRES_SERVER=admin_db
+      - POSTGRES_DB=admin_db
       - REDIS_URL=redis://redis:6379/0
     depends_on:
-      - admin_db
-      - redis
+      admin_db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - backend
 
   frontend_db:
-    image: postgres:15
+    image: postgres:15-alpine
     environment:
       - POSTGRES_USER=frontend_user
       - POSTGRES_PASSWORD=frontend_password
       - POSTGRES_DB=frontend_db
     volumes:
       - frontend_db_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U frontend_user -d frontend_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - backend
 
   admin_db:
-    image: postgres:15
+    image: postgres:15-alpine
     environment:
       - POSTGRES_USER=admin_user
       - POSTGRES_PASSWORD=admin_password
       - POSTGRES_DB=admin_db
     volumes:
       - admin_db_data:/var/lib/postgresql/data
-    ports:
-      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin_user -d admin_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - backend
 
   redis:
-    image: redis:7
-    ports:
-      - "6379:6379"
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - backend
 
 volumes:
   frontend_db_data:
   admin_db_data:
+  redis_data:
+
+networks:
+  backend:
+    driver: bridge
