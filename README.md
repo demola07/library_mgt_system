@@ -91,6 +91,33 @@ docker-compose restart <service_name>
 docker-compose down
 ```
 
+### Mock Data for Testing
+The project includes a script to generate mock data for testing the API. This creates sample books, users, and borrow records.
+
+To load mock data:
+```bash
+# Activate your virtual environment first
+source venv/bin/activate  # On Windows: .\venv\Scripts\activate
+
+# Run the mock data script
+python -m scripts.mock_data
+```
+
+The script will create:
+- 7 books across different categories (technology, business, fiction, etc.)
+- 3 sample users
+- 3 random borrow records
+
+You can then test the API endpoints:
+1. List all books: `GET /api/v1/books/`
+2. View borrowed books: `GET /api/v1/books/unavailable/`
+3. List users and their borrowed books: `GET /api/v1/users/borrowed-books/`
+
+Sample user credentials for testing:
+- Email: john.doe@example.com
+- Email: jane.smith@example.com
+- Email: bob.wilson@example.com
+
 ### Production Deployment
 1. Configure environment variables:
 ```bash

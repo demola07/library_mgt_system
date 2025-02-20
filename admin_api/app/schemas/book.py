@@ -1,14 +1,13 @@
 from pydantic import BaseModel
 from datetime import date, datetime
 from typing import Optional
-from ..models.book import Category, Publisher
 
 class BookBase(BaseModel):
     title: str
     author: str
     isbn: str
-    publisher: Publisher
-    category: Category
+    publisher: str
+    category: str
 
 class BookCreate(BookBase):
     pass
