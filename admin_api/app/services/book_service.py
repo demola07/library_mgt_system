@@ -5,25 +5,31 @@ from ..schemas.book import BookCreate, BookUpdate
 from ..core.redis import publish_book_update
 
 
-def create_book(db: Session, book: BookCreate) -> Book:
-    """Create a new book in the catalogue.
+def create_books(db: Session, books: list[BookCreate]) -> list[Book]:
+    """Add multiple books to the catalogue using bulk insert.
     
     Args:
         db: Database session injected by FastAPI dependency system
-        book: Book data validated by Pydantic
+        books: List of book data validated by Pydantic
     
     Returns:
-        The created book instance
+        List of created book instances
     """
-    db_book = Book(**book.model_dump())
-    db.add(db_book)
+    # Convert Pydantic models to dictionaries for bulk insert
+    book_values = [book.model_dump() for book in books]
+    
+    # Bulk insert all books in a single statement
+    result = db.execute(Book.__table__.insert().returning(Book), book_values)
     db.commit()
-    db.refresh(db_book)
     
-    # Publish to Redis for frontend service
-    publish_book_update(book.model_dump(), 'create')
+    # Get all inserted books
+    inserted_books = result.fetchall()
+    db_books = [Book(**dict(row)) for row in inserted_books]
     
-    return db_book
+    # Publish all updates to Redis in one go
+    publish_book_updates(book_values, 'create')
+    
+    return db_books
 
 
 def delete_book(db: Session, book_id: int) -> bool:
@@ -61,7 +67,7 @@ def get_book(db: Session, book_id: int) -> Optional[Book]:
 
 
 def get_unavailable_books(db: Session, skip: int = 0, limit: int = 100) -> List[Book]:
-    """Get all books that are currently borrowed.
+    """Get all books that are currently borrowed, including their return dates and borrower info.
     
     Args:
         db: Database session injected by FastAPI dependency system
@@ -69,10 +75,13 @@ def get_unavailable_books(db: Session, skip: int = 0, limit: int = 100) -> List[
         limit: Maximum number of records to return
     
     Returns:
-        List of books that are currently unavailable
+        List of unavailable books with their return dates and borrower information
     """
+    # Get books that are currently borrowed by joining with borrow records and users
     return (
         db.query(Book)
+        .join(Book.borrow_records)
+        .join(BorrowRecord.user)
         .filter(Book.available == False)
         .offset(skip)
         .limit(limit)

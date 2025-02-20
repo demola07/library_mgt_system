@@ -12,9 +12,15 @@ def get_book(db: Session, book_id: int) -> Optional[Book]:
         book_id: ID of the book to retrieve
     
     Returns:
-        Book if found, None otherwise
+        Book if found and available, None otherwise
     """
-    return db.query(Book).filter(Book.id == book_id).first()
+    book = db.query(Book).filter(Book.id == book_id).first()
+    
+    # Return None for both non-existent and unavailable books
+    if not book or not book.available:
+        return None
+        
+    return book
 
 def get_books(
     db: Session,
@@ -22,7 +28,7 @@ def get_books(
     limit: int = 100,
     publisher: Optional[Publisher] = None,
     category: Optional[Category] = None,
-    available_only: bool = False
+    available_only: bool = True
 ) -> List[Book]:
     """Get books with optional filtering.
     

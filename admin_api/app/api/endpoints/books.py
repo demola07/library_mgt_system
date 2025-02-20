@@ -7,10 +7,10 @@ from ...services import book_service
 
 router = APIRouter()
 
-@router.post("/", response_model=Book)
-def create_book(book: BookCreate, db: Session = Depends(get_db)):
-    """Add a new book to the catalogue"""
-    return book_service.create_book(db=db, book=book)
+@router.post("/batch", response_model=list[Book], summary="Add multiple books to catalogue")
+def create_books(books: BooksCreate, db: Session = Depends(get_db)):
+    """Add multiple books to the catalogue at once"""
+    return book_service.create_books(db=db, books=books.books)
 
 @router.delete("/{book_id}")
 def delete_book(book_id: int, db: Session = Depends(get_db)):
@@ -19,11 +19,26 @@ def delete_book(book_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Book not found")
     return {"message": "Book deleted successfully"}
 
-@router.get("/unavailable/", response_model=List[Book])
+@router.get("/unavailable/", response_model=List[UnavailableBook])
 def get_unavailable_books(
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db)
 ):
-    """Get all books that are currently borrowed"""
-    return book_service.get_unavailable_books(db=db, skip=skip, limit=limit)
+    """List all books that are currently borrowed, showing when they will be available"""
+    books = book_service.get_unavailable_books(db=db, skip=skip, limit=limit)
+    
+    # Transform to UnavailableBook format
+    return [
+        UnavailableBook(
+            id=book.id,
+            title=book.title,
+            author=book.author,
+            isbn=book.isbn,
+            publisher=book.publisher,
+            category=book.category,
+            borrower_name=f"{book.borrow_records[0].user.firstname} {book.borrow_records[0].user.lastname}",
+            borrower_email=book.borrow_records[0].user.email,
+            return_date=book.return_date
+        ) for book in books
+    ]

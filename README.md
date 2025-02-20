@@ -143,9 +143,107 @@ pytest --cov=app tests/
 ```
 
 ## API Documentation
-After running the services, API documentation will be available at:
+
+After running the services, interactive API documentation (Swagger UI) will be available at:
 - Frontend API: http://localhost:8000/docs
 - Admin API: http://localhost:8001/docs
+
+### Frontend API Endpoints
+
+#### Books
+- `GET /api/v1/books/`
+  - List all books with optional filtering
+  - Query Parameters:
+    - `skip` (int): Number of books to skip (pagination)
+    - `limit` (int): Maximum number of books to return (1-1000)
+    - `publisher` (string): Filter by publisher (e.g., PENGUIN, HARPER_COLLINS)
+    - `category` (string): Filter by category (e.g., FICTION, NON_FICTION)
+    - `available_only` (bool): Only show available books
+
+- `GET /api/v1/books/{book_id}`
+  - Get detailed information about a specific book
+  - Response includes:
+    - Book details (title, author, ISBN)
+    - Current availability status
+    - Expected return date (if borrowed)
+    - Publisher and category information
+
+- `GET /api/v1/books/publishers/`
+  - Get list of all publishers
+  - Returns: List of publisher names (e.g., ["PENGUIN", "HARPER_COLLINS"])
+
+- `GET /api/v1/books/categories/`
+  - Get list of all book categories
+  - Returns: List of category names (e.g., ["FICTION", "NON_FICTION"])
+
+#### Users
+- `POST /api/v1/users/`
+  - Create a new user account
+  - Request Body:
+    ```json
+    {
+        "email": "john.doe@example.com",
+        "firstname": "John",
+        "lastname": "Doe"
+    }
+    ```
+  - Email must be unique
+
+- `GET /api/v1/users/me/{user_id}`
+  - Get user information
+  - Returns user's personal information and account creation timestamp
+
+#### Borrowing
+- `POST /api/v1/borrow/{user_id}/borrow/{book_id}`
+  - Borrow a book
+  - Query Parameters:
+    - `days` (int): Number of days to borrow (1-30)
+  - Responses:
+    - 200: Successfully borrowed
+    - 400: Book unavailable
+    - 404: Book/User not found
+
+### Admin API Endpoints
+
+#### Books Management
+- `POST /api/v1/books/`
+  - Add a new book to the library
+  - Requires book details including ISBN, title, author
+
+- `PUT /api/v1/books/{book_id}`
+  - Update book information
+  - Can modify title, author, category, etc.
+
+- `DELETE /api/v1/books/{book_id}`
+  - Remove a book from the library
+
+#### User Management
+- `GET /api/v1/users/`
+  - List all users
+  - Supports pagination
+
+- `GET /api/v1/users/{user_id}/borrows`
+  - View user's borrowing history
+
+#### Health Checks
+- `GET /api/v1/health`
+  - Check service health
+  - Verifies database and Redis connections
+  - Returns service status and uptime
+
+### Error Responses
+All endpoints follow a consistent error response format:
+```json
+{
+    "detail": "Error message explaining what went wrong"
+}
+```
+
+Common HTTP status codes:
+- 200: Success
+- 400: Bad Request (invalid input)
+- 404: Not Found
+- 500: Internal Server Error
 
 ## Monitoring and Maintenance
 

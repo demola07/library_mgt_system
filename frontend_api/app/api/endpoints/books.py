@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Path
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from ...core.database import get_db
@@ -8,42 +8,46 @@ from ...services import book_service
 
 router = APIRouter()
 
-@router.get("/", response_model=List[BookList])
-def list_books(
+@router.get("/", response_model=List[BookList], summary="List available books")
+def list_available_books(
     skip: int = 0,
     limit: int = 100,
     publisher: Optional[Publisher] = None,
     category: Optional[Category] = None,
-    available_only: bool = False,
     db: Session = Depends(get_db)
 ):
-    """
-    List all books with optional filtering by publisher and category.
-    Only shows available books if available_only is True.
-    """
+    """List available books with optional filtering and pagination."""
     return book_service.get_books(
         db,
         skip=skip,
         limit=limit,
         publisher=publisher,
         category=category,
-        available_only=available_only
+        available_only=True  # Always show only available books
     )
 
-@router.get("/{book_id}", response_model=Book)
-def get_book(book_id: int, db: Session = Depends(get_db)):
-    """Get a specific book by ID"""
-    db_book = book_service.get_book(db, book_id=book_id)
-    if db_book is None:
-        raise HTTPException(status_code=404, detail="Book not found")
-    return db_book
+@router.get("/{book_id}", response_model=Book, summary="Get a specific book")
+def get_book(
+    book_id: int = Path(..., description="Book ID"),
+    db: Session = Depends(get_db)
+):
+    """Get detailed information about a specific book."""
+    book = book_service.get_book(db, book_id=book_id)
+    
+    if not book:
+        raise HTTPException(
+            status_code=404,
+            detail="Book not found"
+        )
+    
+    return book
 
-@router.get("/publishers/", response_model=List[str])
+@router.get("/publishers/", response_model=List[str], summary="List all publishers")
 def get_publishers():
-    """Get list of all publishers"""
+    """Get a list of all publishers."""
     return [publisher.value for publisher in Publisher]
 
-@router.get("/categories/", response_model=List[str])
+@router.get("/categories/", response_model=List[str], summary="List all categories")
 def get_categories():
-    """Get list of all categories"""
+    """Get a list of all book categories."""
     return [category.value for category in Category]

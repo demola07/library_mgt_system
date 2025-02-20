@@ -13,6 +13,10 @@ class BookBase(BaseModel):
 class BookCreate(BookBase):
     pass
 
+class BooksCreate(BaseModel):
+    """Schema for creating multiple books at once."""
+    books: list[BookCreate]
+
 class BookUpdate(BookBase):
     pass
 
@@ -22,6 +26,16 @@ class Book(BookBase):
     return_date: Optional[date] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+class UnavailableBook(BookBase):
+    """Schema for books that are currently borrowed"""
+    id: int
+    borrower_name: str
+    borrower_email: str
+    return_date: date
 
     class Config:
         from_attributes = True
