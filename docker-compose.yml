@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  frontend_api:
+    build:
+      context: .
+      dockerfile: docker/frontend/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://frontend_user:frontend_password@frontend_db:5432/frontend_db
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - frontend_db
+      - redis
+
+  admin_api:
+    build:
+      context: .
+      dockerfile: docker/admin/Dockerfile
+    ports:
+      - "8001:8000"
+    environment:
+      - DATABASE_URL=postgresql://admin_user:admin_password@admin_db:5432/admin_db
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - admin_db
+      - redis
+
+  frontend_db:
+    image: postgres:15
+    environment:
+      - POSTGRES_USER=frontend_user
+      - POSTGRES_PASSWORD=frontend_password
+      - POSTGRES_DB=frontend_db
+    volumes:
+      - frontend_db_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  admin_db:
+    image: postgres:15
+    environment:
+      - POSTGRES_USER=admin_user
+      - POSTGRES_PASSWORD=admin_password
+      - POSTGRES_DB=admin_db
+    volumes:
+      - admin_db_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+
+volumes:
+  frontend_db_data:
+  admin_db_data:
