@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, DateTime
 from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
+from datetime import datetime
 from ..core.database import Base
 
 class User(Base):
@@ -10,7 +10,7 @@ class User(Base):
     email = Column(String, unique=True, index=True)
     firstname = Column(String)
     lastname = Column(String)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime, default=datetime.utcnow)
     
     # Relationship with BorrowRecord
     borrow_records = relationship("BorrowRecord", back_populates="user")

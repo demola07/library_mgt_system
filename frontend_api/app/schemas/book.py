@@ -1,30 +1,33 @@
 from pydantic import BaseModel
-from datetime import date
+from datetime import datetime
 from typing import Optional
-from ..models.book import Category, Publisher
 
 class BookBase(BaseModel):
+    """Base schema for book data"""
     title: str
     author: str
     isbn: str
-    publisher: Publisher
-    category: Category
+    publisher: str
+    category: str
 
-class Book(BookBase):
+class BookCreate(BookBase):
+    """Schema for creating a new book"""
+    pass
+
+class BookResponse(BookBase):
+    """Schema for book response"""
     id: int
     available: bool
-    return_date: Optional[date] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
 
-class BookList(BaseModel):
-    id: int
-    title: str
-    author: str
-    publisher: Publisher
-    category: Category
-    available: bool
+class BookList(BookResponse):
+    """Schema for book list response"""
+    pass
 
-    class Config:
-        from_attributes = True
+class BookDetail(BookResponse):
+    """Schema for detailed book response"""
+    pass

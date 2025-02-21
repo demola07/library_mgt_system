@@ -12,21 +12,26 @@ services:
       - POSTGRES_PASSWORD=frontend_password
       - POSTGRES_SERVER=frontend_db
       - POSTGRES_DB=frontend_db
-      - REDIS_URL=redis://redis:6379/0
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - PYTHONPATH=/app
     depends_on:
-      frontend_db:
+      rabbitmq:
         condition: service_healthy
-      redis:
+      frontend_db:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 10s
+      start_period: 20s
     restart: unless-stopped
     networks:
       - backend
+    volumes:
+      - ./frontend_api:/app
+      - ./shared:/app/shared
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
   admin_api:
     build:
@@ -39,21 +44,26 @@ services:
       - POSTGRES_PASSWORD=admin_password
       - POSTGRES_SERVER=admin_db
       - POSTGRES_DB=admin_db
-      - REDIS_URL=redis://redis:6379/0
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - PYTHONPATH=/app
     depends_on:
-      admin_db:
+      rabbitmq:
         condition: service_healthy
-      redis:
+      admin_db:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 10s
+      start_period: 20s
     restart: unless-stopped
     networks:
       - backend
+    volumes:
+      - ./admin_api:/app
+      - ./shared:/app/shared
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
   frontend_db:
     image: postgres:15-alpine
@@ -61,6 +71,8 @@ services:
       - POSTGRES_USER=frontend_user
       - POSTGRES_PASSWORD=frontend_password
       - POSTGRES_DB=frontend_db
+    ports:
+      - "5432:5432"
     volumes:
       - frontend_db_data:/var/lib/postgresql/data
     healthcheck:
@@ -79,6 +91,8 @@ services:
       - POSTGRES_USER=admin_user
       - POSTGRES_PASSWORD=admin_password
       - POSTGRES_DB=admin_db
+    ports:
+      - "5433:5432"
     volumes:
       - admin_db_data:/var/lib/postgresql/data
     healthcheck:
@@ -91,25 +105,22 @@ services:
     networks:
       - backend
 
-  redis:
-    image: redis:7-alpine
-    command: redis-server --appendonly yes
-    volumes:
-      - redis_data:/data
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-    restart: unless-stopped
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     networks:
       - backend
 
 volumes:
   frontend_db_data:
   admin_db_data:
-  redis_data:
 
 networks:
   backend:

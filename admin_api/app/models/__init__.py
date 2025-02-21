@@ -1,5 +1,5 @@
-from .book import Book, Category, Publisher
+from .book import Book
 from .user import User
 from .borrow import BorrowRecord
 
-__all__ = ["Book", "Category", "Publisher", "User", "BorrowRecord"]
+__all__ = ["Book", "User", "BorrowRecord"]

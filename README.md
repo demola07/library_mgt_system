@@ -12,14 +12,12 @@ A distributed library management system built with FastAPI and PostgreSQL. The s
 - Book catalogue browsing
 - Book filtering by publisher and category
 - Book borrowing system
-- Real-time book availability updates via Redis
 
 ### Admin API
 - Book catalogue management
-- User management
+- User oversight
 - Borrowed books tracking
-- Book availability monitoring
-- Book updates broadcasting via Redis
+- User creation broadcasting via RabbitMQ
 
 ## Tech Stack
 - FastAPI - Modern, fast web framework for building APIs
@@ -32,26 +30,70 @@ A distributed library management system built with FastAPI and PostgreSQL. The s
 
 ## Project Structure
 ```
-bookstore/
+library_system/
 ├── docker/
 │   ├── frontend/
+│   │   └── Dockerfile
 │   └── admin/
+│       └── Dockerfile
 ├── frontend_api/
 │   ├── app/
 │   │   ├── api/
+│   │   │   ├── endpoints/
+│   │   │   │   ├── books.py
+│   │   │   │   ├── users.py
+│   │   │   │   ├── borrow.py
+│   │   │   │   └── health.py
+│   │   │   └── __init__.py
 │   │   ├── core/
+│   │   │   ├── config.py
+│   │   │   └── database.py
 │   │   ├── models/
+│   │   │   ├── book.py
+│   │   │   ├── user.py
+│   │   │   └── borrow.py
 │   │   ├── schemas/
+│   │   │   ├── book.py
+│   │   │   ├── user.py
+│   │   │   └── borrow.py
 │   │   └── services/
+│   │       ├── __init__.py
+│   │       ├── book_service.py
+│   │       ├── book_sync_service.py
+│   │       ├── borrow_service.py
+│   │       └── user_service.py
 │   └── tests/
 ├── admin_api/
 │   ├── app/
 │   │   ├── api/
+│   │   │   ├── endpoints/
+│   │   │   │   ├── books.py
+│   │   │   │   ├── users.py
+│   │   │   │   ├── borrow.py
+│   │   │   │   └── health.py
+│   │   │   └── __init__.py
 │   │   ├── core/
+│   │   │   ├── config.py
+│   │   │   └── database.py
 │   │   ├── models/
+│   │   │   ├── book.py
+│   │   │   ├── user.py
+│   │   │   └── borrow.py
 │   │   ├── schemas/
+│   │   │   ├── book.py
+│   │   │   ├── user.py
+│   │   │   └── borrow.py
 │   │   └── services/
+│   │       ├── __init__.py
+│   │       ├── book_service.py
+│   │       ├── book_sync_service.py
+│   │       ├── borrow_service.py
+│   │       └── user_service.py
 │   └── tests/
+├── shared/
+│   ├── message_broker.py
+│   ├── message_types.py
+│   └── pagination.py
 ├── docker-compose.yml
 └── requirements.txt
 ```
@@ -258,19 +300,46 @@ After running the services, interactive API documentation (Swagger UI) will be a
   - Verifies database and Redis connections
   - Returns service status and uptime
 
-### Error Responses
-All endpoints follow a consistent error response format:
-```json
-{
-    "detail": "Error message explaining what went wrong"
-}
+#### Borrow Management
+- `GET /api/v1/borrows/`
+  - List all borrows
+  - Query Parameters:
+    - `page` (integer, default: 1)
+    - `limit` (integer, default: 10)
+    - `user_id` (integer, optional): Filter by user
+    - `overdue` (boolean, optional): Filter overdue borrows
+  - Response:
+    - `items`: List of borrow records
+    - `total`: Total number of borrows
+    - `page`: Current page number
+    - `limit`: Number of borrows per page
+    - `pages`: Total number of pages
+
+## Message Types
+
+The system uses RabbitMQ for service communication with the following message types:
+
+```python
+BOOKS_CREATED = "books.created"      # Admin -> Frontend
+BOOK_DELETED = "book.deleted"        # Admin -> Frontend
+BOOK_BORROWED = "book.borrowed"      # Frontend -> Admin
+USER_CREATED = "user.created"        # Frontend -> Admin
 ```
 
-Common HTTP status codes:
-- 200: Success
-- 400: Bad Request (invalid input)
-- 404: Not Found
-- 500: Internal Server Error
+## Service Communication
+
+### BookSyncService
+Handles synchronization of book data between admin and frontend APIs:
+- Listens for book creation/deletion events from admin API
+- Updates frontend database accordingly
+- Maintains data consistency across services
+
+### BorrowService
+Manages book borrowing operations:
+- Creates borrow records
+- Updates book availability
+- Notifies admin API about borrowed books
+- Handles return date calculations
 
 ## Monitoring and Maintenance
 

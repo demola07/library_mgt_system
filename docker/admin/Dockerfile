@@ -42,9 +42,10 @@ WORKDIR /app
 
 # Copy application code
 COPY admin_api /app/
+COPY shared /app/shared
 
 # Set ownership to non-root user
-RUN chown -R appuser:appuser /app
+RUN chown -R appuser /app
 
 # Switch to non-root user
 USER appuser

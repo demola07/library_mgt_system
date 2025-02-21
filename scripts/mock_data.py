@@ -1,10 +1,25 @@
+import os
+import sys
 from datetime import date, timedelta
 import random
-from sqlalchemy.orm import Session
-from admin_api.app.core.database import SessionLocal
-from admin_api.app.models.book import Book
-from admin_api.app.models.user import User
-from admin_api.app.models.borrow import BorrowRecord
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, Session
+
+# Import our standalone models
+from models import Base, Book, User, BorrowRecord
+
+# Database URLs (using Docker service names)
+ADMIN_DB_URL = "postgresql://admin_user:admin_password@admin_db:5432/admin_db"
+FRONTEND_DB_URL = "postgresql://frontend_user:frontend_password@frontend_db:5432/frontend_db"
+
+# Create and initialize databases
+def init_db(url: str):
+    engine = create_engine(url)
+    Base.metadata.create_all(bind=engine)
+    return sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+AdminSessionLocal = init_db(ADMIN_DB_URL)
+FrontendSessionLocal = init_db(FRONTEND_DB_URL)
 
 # Sample data
 BOOKS = [
@@ -13,14 +28,16 @@ BOOKS = [
         "author": "Robert C. Martin",
         "isbn": "978-0132350884",
         "publisher": "Manning Publications",
-        "category": "Software Development"
+        "category": "Software Development",
+        "available": True
     },
     {
         "title": "Design Patterns",
         "author": "Erich Gamma",
         "isbn": "978-0201633610",
         "publisher": "Wiley",
-        "category": "Software Architecture"
+        "category": "Software Architecture",
+        "available": True
     },
     {
         "title": "The Lean Startup",
@@ -102,12 +119,11 @@ def create_mock_data(db: Session):
     
     # Create some borrow records
     print("Creating borrow records...")
-    for _ in range(3):  # Create 3 borrow records
+    for _ in range(3):
         book = random.choice(books)
         user = random.choice(users)
         borrow_days = random.randint(7, 30)
         
-        # Mark book as borrowed
         book.available = False
         book.return_date = date.today() + timedelta(days=borrow_days)
         
@@ -123,8 +139,18 @@ def create_mock_data(db: Session):
     print("Mock data created successfully!")
 
 if __name__ == "__main__":
-    db = SessionLocal()
+    # Load data into admin database
+    print("Loading data into admin database...")
+    admin_db = AdminSessionLocal()
     try:
-        create_mock_data(db)
+        create_mock_data(admin_db)
     finally:
-        db.close()
+        admin_db.close()
+
+    # Load data into frontend database
+    print("Loading data into frontend database...")
+    frontend_db = FrontendSessionLocal()
+    try:
+        create_mock_data(frontend_db)
+    finally:
+        frontend_db.close()

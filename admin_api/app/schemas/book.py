@@ -39,11 +39,9 @@ class UnavailableBook(BookBase):
     class Config:
         from_attributes = True
 
-class BookBorrowed(BaseModel):
+class BookBorrowed(BookBase):
+    """Schema for a borrowed book with its availability information"""
     id: int
-    title: str
-    borrower_name: str
-    borrower_email: str
     borrow_date: date
     return_date: date
 
