@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from ..models.book import Book
 from ..models.borrow import BorrowRecord
-from ..schemas.book import BookCreate
+from ..schemas.book import BookCreate, UnavailableBook
 from ..schemas.borrow import BookBorrowed
 import sys
 import os
@@ -10,6 +10,7 @@ import logging
 from datetime import datetime
 from sqlalchemy.orm import joinedload
 from shared.pagination import PaginatedResponse
+from sqlalchemy import or_
 
 # Add shared directory to Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))
@@ -142,8 +143,8 @@ class BookService:
         db: Session, 
         page: int = 1,
         limit: int = 10
-    ) -> PaginatedResponse[BookBorrowed]:
-        """Retrieve all currently borrowed books with pagination.
+    ) -> PaginatedResponse[UnavailableBook]:
+        """Retrieve all currently unavailable books with pagination.
         
         Args:
             db: Database session for executing queries
@@ -151,7 +152,7 @@ class BookService:
             limit: Maximum number of items per page
         
         Returns:
-            Paginated response containing borrowed books with their details
+            Paginated response containing unavailable books with their details
             
         Raises:
             ValueError: If there's an error retrieving the books
@@ -163,30 +164,25 @@ class BookService:
             # Base query for reuse
             base_query = (
                 db.query(
-                    Book.id,
-                    Book.title,
-                    Book.author,
-                    Book.isbn,
-                    Book.publisher,
-                    Book.category,
-                    Book.available,
+                    Book,
                     BorrowRecord.borrow_date,
                     BorrowRecord.return_date
                 )
-                .join(Book.borrow_records)
-                .filter(
-                    Book.available == False,
-                    BorrowRecord.return_date > datetime.now()
-                )
+                .filter(Book.available == False)
+                .outerjoin(BorrowRecord)
+                .filter(or_(
+                    BorrowRecord.return_date > datetime.now(),
+                    BorrowRecord.id == None
+                ))
             )
             
             # Get total count
             total = base_query.count()
             
             # Get paginated results
-            query_results = (
+            results = (
                 base_query
-                .order_by(BorrowRecord.return_date)
+                .order_by(Book.id)
                 .offset(skip)
                 .limit(limit)
                 .all()
@@ -194,18 +190,18 @@ class BookService:
             
             # Transform to DTOs
             items = [
-                BookBorrowed(
-                    id=result.id,
-                    title=result.title,
-                    author=result.author,
-                    isbn=result.isbn,
-                    publisher=result.publisher,
-                    category=result.category,
-                    available=result.available,
+                UnavailableBook(
+                    id=result.Book.id,
+                    title=result.Book.title,
+                    author=result.Book.author,
+                    isbn=result.Book.isbn,
+                    publisher=result.Book.publisher,
+                    category=result.Book.category,
+                    available=result.Book.available,
                     borrow_date=result.borrow_date,
                     return_date=result.return_date
                 )
-                for result in query_results
+                for result in results
             ]
             
             return PaginatedResponse.create(

@@ -29,12 +29,16 @@ class Book(BookBase):
     class Config:
         from_attributes = True
 
-class UnavailableBook(BookBase):
-    """Schema for books that are currently borrowed"""
+class UnavailableBook(BaseModel):
     id: int
-    borrower_name: str
-    borrower_email: str
-    return_date: date
+    title: str
+    author: str
+    isbn: str
+    publisher: str
+    category: str
+    available: bool
+    borrow_date: Optional[date] = None
+    return_date: Optional[date] = None
 
     class Config:
         from_attributes = True

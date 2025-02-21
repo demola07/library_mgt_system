@@ -27,13 +27,13 @@ async def remove_book(
         raise HTTPException(status_code=404, detail="Book not found")
     return {"message": "Book deleted successfully"}
 
-@router.get("/unavailable", response_model=PaginatedResponse[BookBorrowed])
+@router.get("/unavailable", response_model=PaginatedResponse[UnavailableBook])
 async def list_unavailable_books(
     page: int = 1,
     limit: int = 10,
     db: Session = Depends(get_db)
 ):
-    """List all books that are currently borrowed with pagination
+    """List all books that are currently unavailable with pagination
     
     Args:
         page: Page number (1-based)
