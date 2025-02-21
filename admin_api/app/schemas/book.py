@@ -44,6 +44,7 @@ class BookBorrowed(BookBase):
     id: int
     borrow_date: date
     return_date: date
+    available: Optional[bool] = None
 
     class Config:
         from_attributes = True

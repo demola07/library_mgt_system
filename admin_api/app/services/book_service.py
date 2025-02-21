@@ -169,6 +169,7 @@ class BookService:
                     Book.isbn,
                     Book.publisher,
                     Book.category,
+                    Book.available,
                     BorrowRecord.borrow_date,
                     BorrowRecord.return_date
                 )
@@ -200,6 +201,7 @@ class BookService:
                     isbn=result.isbn,
                     publisher=result.publisher,
                     category=result.category,
+                    available=result.available,
                     borrow_date=result.borrow_date,
                     return_date=result.return_date
                 )
