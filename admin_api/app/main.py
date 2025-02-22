@@ -12,6 +12,9 @@ from .services.book_service import BookService
 from .services.user_service import UserService
 from .services.user_sync_service import UserSyncService
 from .services.borrow_sync_service import BorrowSyncService
+from shared.exceptions import LibraryException
+import traceback
+import uuid
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -73,42 +76,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Global exception handlers
-@app.exception_handler(Exception)
-async def global_exception_handler(request: Request, exc: Exception):
-    """Handle all unhandled exceptions."""
-    logger.error(f"Unhandled exception: {exc}", exc_info=True)
-    return JSONResponse(
-        status_code=500,
-        content={
-            "detail": "Internal server error occurred. Please try again later.",
-            "type": "internal_error"
-        }
-    )
-
-@app.exception_handler(SQLAlchemyError)
-async def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError):
-    """Handle database-related errors."""
-    logger.error(f"Database error: {exc}", exc_info=True)
-    return JSONResponse(
-        status_code=500,
-        content={
-            "detail": "Database error occurred. Please try again later.",
-            "type": "database_error"
-        }
-    )
-
-@app.exception_handler(HTTPException)
-async def http_exception_handler(request: Request, exc: HTTPException):
-    """Handle HTTP exceptions with custom format."""
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={
-            "detail": exc.detail,
-            "type": "http_error"
-        }
-    )
-
 # Include API router
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
@@ -135,7 +102,6 @@ async def shutdown_event():
     
     # Close message broker connection
     await message_broker.close()
-    
     # Stop the user sync service
     await user_sync_service.stop()
     # Stop the borrow sync service
@@ -143,27 +109,81 @@ async def shutdown_event():
     
     logger.info("Shutdown complete")
 
-def custom_openapi():
-    if app.openapi_schema:
-        return app.openapi_schema
-    
-    openapi_schema = get_openapi(
-        title=app.title,
-        version=app.version,
-        description=app.description,
-        routes=app.routes,
-        tags=[
-            {"name": "books", "description": "Book catalogue management operations."},
-            {"name": "users", "description": "User management and oversight."},
-            {"name": "health", "description": "API health check endpoints."},
-        ],
-    )
-    
-    app.openapi_schema = openapi_schema
-    return app.openapi_schema
-
-app.openapi = custom_openapi
-
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
+# Global exception handlers (at the bottom)
+@app.exception_handler(LibraryException)
+async def library_exception_handler(request: Request, exc: LibraryException):
+    """Handle custom library exceptions"""
+    logger.error(
+        f"Library error occurred: {exc.message}",
+        extra={
+            "error_code": exc.error_code,
+            "details": exc.details,
+            "path": request.url.path
+        }
+    )
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error_code": exc.error_code,
+            "message": exc.message,
+            "details": exc.details,
+            "type": "library_error"
+        }
+    )
+
+@app.exception_handler(SQLAlchemyError)
+async def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError):
+    """Handle database-related errors"""
+    error_details = {
+        "sql_state": getattr(exc, 'sqlstate', None),
+        "path": request.url.path
+    }
+    logger.error(
+        f"Database error occurred: {str(exc)}",
+        extra=error_details,
+        exc_info=True
+    )
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error_code": "DATABASE_ERROR",
+            "message": "A database error occurred. Please try again later.",
+            "type": "database_error"
+        }
+    )
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    """Handle HTTP exceptions"""
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error_code": f"HTTP_{exc.status_code}",
+            "message": exc.detail,
+            "type": "http_error"
+        }
+    )
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Handle all unhandled exceptions"""
+    logger.error(
+        f"Unhandled exception occurred: {str(exc)}",
+        extra={
+            "path": request.url.path,
+            "traceback": traceback.format_exc()
+        },
+        exc_info=True
+    )
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error_code": "INTERNAL_ERROR",
+            "message": "An unexpected error occurred. Please try again later.",
+            "type": "internal_error"
+        }
+    )

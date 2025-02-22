@@ -5,6 +5,11 @@ from ..core.database import SessionLocal
 from ..schemas.borrow import BorrowCreate
 from contextlib import contextmanager
 import logging
+from shared.exceptions import (
+    LibraryException,
+    MessageBrokerError,
+    DatabaseOperationError
+)
 
 logger = logging.getLogger(__name__)
 
@@ -15,21 +20,27 @@ class BorrowSyncService:
 
     async def start(self):
         """Initialize connections and start listening for messages"""
-        logger.info("Starting BorrowSyncService...")
-        await self.message_broker.connect()
-        
-        # Subscribe to borrow-related events
-        logger.info(f"Subscribing to {MessageType.BOOK_BORROWED.value} events...")
-        await self.message_broker.subscribe(
-            MessageType.BOOK_BORROWED.value,
-            self._handle_book_borrowed
-        )
-        logger.info("BorrowSyncService started and subscribed to borrow events")
+        try:
+            logger.info("Starting BorrowSyncService...")
+            await self.message_broker.connect()
+            
+            # Subscribe to borrow-related events
+            logger.info(f"Subscribing to {MessageType.BOOK_BORROWED.value} events...")
+            await self.message_broker.subscribe(
+                MessageType.BOOK_BORROWED.value,
+                self._handle_book_borrowed
+            )
+            logger.info("BorrowSyncService started and subscribed to borrow events")
+        except Exception as e:
+            raise MessageBrokerError(f"Failed to start BorrowSyncService: {str(e)}")
 
     async def stop(self):
         """Cleanup connections"""
-        if self.message_broker.connection:
-            await self.message_broker.connection.close()
+        try:
+            if self.message_broker.connection:
+                await self.message_broker.connection.close()
+        except Exception as e:
+            raise MessageBrokerError(f"Failed to stop BorrowSyncService: {str(e)}")
 
     @contextmanager
     def get_db(self):
@@ -42,14 +53,12 @@ class BorrowSyncService:
 
     async def _handle_book_borrowed(self, data: dict):
         """Handle book borrow message from frontend_api"""
-        logger.info(f"Received book borrow message with data: {data}")
         try:
             with self.get_db() as db:
                 logger.info("Creating database session...")
                 logger.info("Calling create_borrow_record...")
-                borrow = await self.borrow_service.create_borrow_record(db, data)
+                await self.borrow_service.create_borrow_record(db, data)
                 logger.info(f"Borrow record creation successful for book {data['book_isbn']}")
-                return borrow
         except Exception as e:
-            logger.error(f"Error in _handle_book_borrowed: {str(e)}", exc_info=True)
-            raise
+            # Log but don't raise - we don't want to crash the message consumer
+            logger.error(f"Error processing borrow message: {str(e)}", exc_info=True)

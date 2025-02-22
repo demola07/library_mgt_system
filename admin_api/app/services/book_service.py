@@ -12,12 +12,15 @@ from sqlalchemy.orm import joinedload
 from shared.pagination import PaginatedResponse
 from sqlalchemy import or_
 from ..core.config import settings
+from shared.exceptions import ResourceNotFoundError, DatabaseOperationError
+from sqlalchemy.exc import SQLAlchemyError
+from shared.message_types import MessageType
+from shared.message_broker import MessageBroker
+from shared.exceptions import LibraryException
+from shared.exceptions import MessageBrokerError
 
 # Add shared directory to Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))
-
-from shared.message_types import MessageType
-from shared.message_broker import MessageBroker
 
 logger = logging.getLogger(__name__)
 
@@ -38,10 +41,7 @@ class BookService:
         try:
             logger.info(f"Creating {len(books)} books in admin API")
             
-            # Convert Pydantic models to dictionaries for bulk insert
             book_values = [book.model_dump() for book in books]
-            
-            # Check for existing ISBNs first
             new_books = []
             existing_books = []
             
@@ -56,13 +56,16 @@ class BookService:
                     new_books.append(db_book)
             
             if new_books:
-                # Commit the transaction for new books
-                db.commit()
+                try:
+                    db.commit()
+                except SQLAlchemyError as e:
+                    db.rollback()
+                    raise DatabaseOperationError(
+                        message="Failed to commit new books to database"
+                    ) from e
                 
-                # Convert new books to dict format for message
-                books_data = []
-                for book in new_books:
-                    book_dict = {
+                books_data = [
+                    {
                         "title": book.title,
                         "author": book.author,
                         "isbn": book.isbn,
@@ -70,32 +73,34 @@ class BookService:
                         "category": book.category,
                         "available": True
                     }
-                    books_data.append(book_dict)
+                    for book in new_books
+                ]
                 
-                # Notify frontend_api about new books
-                if books_data:
+                try:
                     await self.message_broker.publish(
                         MessageType.BOOKS_CREATED.value,
                         books_data
                     )
+                except Exception as e:
+                    raise MessageBrokerError(
+                        message="Failed to publish books created message"
+                    ) from e
                 
                 logger.info(f"Successfully created {len(new_books)} new books and notified frontend")
             
-            # Return both new and existing books
             all_books = new_books + existing_books
             if not all_books:
                 logger.warning("No books were created or found")
-            else:
-                logger.info(f"Returning {len(all_books)} books ({len(new_books)} new, {len(existing_books)} existing)")
             
             return all_books
             
+        except (DatabaseOperationError, MessageBrokerError):
+            raise  # Re-raise these specific exceptions
         except Exception as e:
-            db.rollback()
-            error_msg = f"Failed to create books in admin API: {str(e)}"
-            logger.error(error_msg, exc_info=True)
-            raise ValueError(error_msg)
-
+            raise LibraryException(
+                message="Failed to process book creation",
+                error_code="BOOK_CREATION_ERROR"
+            ) from e
 
     async def delete_book(self, db: Session, book_id: int) -> bool:
         """Delete a book from the catalogue.
@@ -107,27 +112,34 @@ class BookService:
         Returns:
             True if book was deleted, False if book was not found
         """
-        db_book = self.get_book(db, book_id)
-        if db_book:
-            # Get the ISBN before deleting
-            book_isbn = db_book.isbn
+        try:
+            book = self.get_book(db, book_id)
+            book_isbn = book.isbn
             
-            db.delete(db_book)
+            db.delete(book)
             db.commit()
             
-            # Notify frontend_api about deleted book using ISBN
             await self.message_broker.publish(
                 MessageType.BOOK_DELETED.value,
                 {"isbn": book_isbn}
             )
-            
-            logger.info(f"Successfully deleted book with ISBN {book_isbn}")
             return True
             
-        logger.info(f"Book with ID {book_id} not found for deletion")
-        return False
+        except ResourceNotFoundError:
+            raise  # Re-raise as is
+        except SQLAlchemyError as e:
+            raise DatabaseOperationError(
+                message="Failed to delete book",
+                details={"book_id": book_id}
+            ) from e
+        except Exception as e:
+            raise LibraryException(
+                message="Failed to process book deletion",
+                error_code="BOOK_DELETION_ERROR",
+                details={"book_id": book_id}
+            ) from e
 
-    def get_book(self, db: Session, book_id: int) -> Optional[Book]:
+    def get_book(self, db: Session, book_id: int) -> Book:
         """Get a book by its ID.
         
         Args:
@@ -135,9 +147,26 @@ class BookService:
             book_id: ID of the book to retrieve
         
         Returns:
-            Book instance if found, None otherwise
+            Book instance if found
         """
-        return db.query(Book).filter(Book.id == book_id).first()
+        try:
+            book = db.query(Book).filter(Book.id == book_id).first()
+            if not book:
+                raise ResourceNotFoundError("Book", book_id)
+            return book
+        except ResourceNotFoundError:
+            raise  # Re-raise as is
+        except SQLAlchemyError as e:
+            raise DatabaseOperationError(
+                message="Failed to fetch book from database",
+                details={"book_id": book_id}
+            ) from e
+        except Exception as e:
+            raise LibraryException(
+                message="Failed to process book retrieval",
+                error_code="BOOK_RETRIEVAL_ERROR",
+                details={"book_id": book_id}
+            ) from e
 
     async def get_unavailable_books(
         self, 
@@ -153,16 +182,11 @@ class BookService:
             limit: Maximum number of items per page
         
         Returns:
-            Paginated response containing unavailable books with their details
-            
-        Raises:
-            ValueError: If there's an error retrieving the books
+            Paginated response containing unavailable books
         """
         try:
-            # Calculate skip
             skip = (page - 1) * limit
             
-            # Base query for reuse
             base_query = (
                 db.query(
                     Book,
@@ -177,19 +201,20 @@ class BookService:
                 ))
             )
             
-            # Get total count
-            total = base_query.count()
+            try:
+                total = base_query.count()
+                results = (
+                    base_query
+                    .order_by(Book.id)
+                    .offset(skip)
+                    .limit(limit)
+                    .all()
+                )
+            except SQLAlchemyError as e:
+                raise DatabaseOperationError(
+                    message="Failed to fetch unavailable books"
+                ) from e
             
-            # Get paginated results
-            results = (
-                base_query
-                .order_by(Book.id)
-                .offset(skip)
-                .limit(limit)
-                .all()
-            )
-            
-            # Transform to DTOs
             items = [
                 UnavailableBook(
                     id=result.Book.id,
@@ -212,9 +237,13 @@ class BookService:
                 limit=limit
             )
             
+        except DatabaseOperationError:
+            raise  # Re-raise as is
         except Exception as e:
-            logger.error("Failed to retrieve unavailable books", exc_info=True)
-            raise ValueError(f"Error fetching unavailable books: {str(e)}") from e
+            raise LibraryException(
+                message="Failed to process unavailable books retrieval",
+                error_code="BOOK_RETRIEVAL_ERROR"
+            ) from e
 
 # Create instance to be imported by other modules
 message_broker = MessageBroker(settings.RABBITMQ_URL)

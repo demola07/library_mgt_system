@@ -10,6 +10,12 @@ import logging
 from shared.pagination import PaginatedResponse
 from ..schemas.user import UserResponse, UserWithBorrowedBooksResponse
 from ..core.config import settings
+from shared.exceptions import (
+    LibraryException,
+    DatabaseOperationError,
+    ResourceNotFoundError,
+    ValidationError
+)
 
 logger = logging.getLogger(__name__)
 
@@ -32,30 +38,25 @@ class UserService:
             
         Returns:
             Paginated response containing users
-            
-        Raises:
-            ValueError: If there's an error retrieving users
         """
         try:
-            # Calculate skip
             skip = (page - 1) * limit
-            
-            # Base query for reuse
             base_query = db.query(User)
             
-            # Get total count
-            total = base_query.count()
+            try:
+                total = base_query.count()
+                users = (
+                    base_query
+                    .order_by(User.created_at.desc())
+                    .offset(skip)
+                    .limit(limit)
+                    .all()
+                )
+            except SQLAlchemyError as e:
+                raise DatabaseOperationError(
+                    message=f"Failed to fetch users: {str(e)}"
+                ) from e
             
-            # Get paginated results
-            users = (
-                base_query
-                .order_by(User.created_at.desc())
-                .offset(skip)
-                .limit(limit)
-                .all()
-            )
-            
-            # Convert to response schema
             user_responses = [UserResponse.model_validate(user) for user in users]
             
             return PaginatedResponse.create(
@@ -65,10 +66,13 @@ class UserService:
                 limit=limit
             )
             
+        except DatabaseOperationError:
+            raise  # Re-raise as is
         except Exception as e:
-            error_msg = f"Failed to get users: {str(e)}"
-            logger.error(error_msg, exc_info=True)
-            raise ValueError(error_msg)
+            raise LibraryException(
+                message=f"An unexpected error occurred while fetching users: {str(e)}",
+                error_code="USER_RETRIEVAL_ERROR"
+            ) from e
 
     async def get_users_with_borrowed_books(
         self, 
@@ -85,49 +89,48 @@ class UserService:
             
         Returns:
             Paginated response containing users with their borrowed books
-            
-        Raises:
-            ValueError: If there's an error retrieving the data
         """
         try:
-            # Calculate skip
             skip = (page - 1) * limit
             
-            # Base query for users with borrow records
             base_query = (
                 db.query(User)
                 .join(BorrowRecord)
                 .distinct()
             )
             
-            # Get total count
-            total = base_query.count()
-            
-            # Get paginated results
-            users = (
-                base_query
-                .order_by(User.created_at.desc())
-                .offset(skip)
-                .limit(limit)
-                .all()
-            )
-            
-            # For each user, get their borrowed books
-            for user in users:
-                borrow_records = (
-                    db.query(BorrowRecord)
-                    .filter(BorrowRecord.user_id == user.id)
-                    .join(BorrowRecord.book)
+            try:
+                total = base_query.count()
+                users = (
+                    base_query
+                    .order_by(User.created_at.desc())
+                    .offset(skip)
+                    .limit(limit)
                     .all()
                 )
+            except SQLAlchemyError as e:
+                raise DatabaseOperationError(
+                    message="Failed to fetch users with borrowed books"
+                ) from e
+            
+            for user in users:
+                try:
+                    borrow_records = (
+                        db.query(BorrowRecord)
+                        .filter(BorrowRecord.user_id == user.id)
+                        .join(BorrowRecord.book)
+                        .all()
+                    )
+                except SQLAlchemyError as e:
+                    raise DatabaseOperationError(
+                        message="Failed to fetch borrow records"
+                    ) from e
                 
-                # Convert to BookBorrowed format
                 user.borrowed_books = [
                     self._create_book_borrowed_dto(record, user)
                     for record in borrow_records
                 ]
             
-            # Convert to response schema
             user_responses = [
                 UserWithBorrowedBooksResponse.model_validate(user) 
                 for user in users
@@ -140,10 +143,13 @@ class UserService:
                 limit=limit
             )
             
+        except DatabaseOperationError:
+            raise  # Re-raise as is
         except Exception as e:
-            error_msg = f"Failed to get users with borrowed books: {str(e)}"
-            logger.error(error_msg, exc_info=True)
-            raise ValueError(error_msg)
+            raise LibraryException(
+                message="Failed to process users with borrowed books retrieval",
+                error_code="USER_BORROWED_BOOKS_ERROR"
+            ) from e
 
     def _create_book_borrowed_dto(
         self, 
@@ -175,52 +181,62 @@ class UserService:
         try:
             logger.info(f"Starting user creation in admin API with data: {user_data}")
             
-            # Check if user already exists
-            existing_user = self.get_user_by_email(db, user_data["email"])
-            logger.info(f"Checked for existing user: {'Found' if existing_user else 'Not found'}")
+            try:
+                existing_user = self.get_user_by_email(db, user_data["email"])
+            except KeyError as e:
+                raise ValidationError(
+                    message=f"Missing required field: {str(e)}"
+                )
+            except SQLAlchemyError as e:
+                raise DatabaseOperationError(
+                    message=f"Failed to check for existing user: {str(e)}"
+                ) from e
             
             if existing_user:
                 logger.info(f"User already exists in admin API: {user_data['email']}")
                 return existing_user
             
-            # Create user in database
-            logger.info("Creating new user object...")
-            db_user = User(
-                email=user_data["email"],
-                firstname=user_data["firstname"],
-                lastname=user_data["lastname"],
-                created_at=datetime.utcnow()
-            )
+            try:
+                db_user = User(
+                    email=user_data["email"],
+                    firstname=user_data["firstname"],
+                    lastname=user_data["lastname"],
+                    created_at=datetime.utcnow()
+                )
+                
+                db.add(db_user)
+                db.commit()
+                db.refresh(db_user)
+                
+                return db_user
+                
+            except SQLAlchemyError as e:
+                db.rollback()
+                raise DatabaseOperationError(
+                    message=f"Failed to create user: {str(e)}"
+                ) from e
             
-            logger.info("Adding user to database session...")
-            db.add(db_user)
-            
-            logger.info("Committing transaction...")
-            db.commit()
-            
-            logger.info("Refreshing user object...")
-            db.refresh(db_user)
-            
-            logger.info(f"Successfully created user in admin API: {db_user.email}")
-            return db_user
-            
-        except KeyError as e:
-            error_msg = f"Missing required field in user data: {str(e)}"
-            logger.error(error_msg)
-            raise ValueError(error_msg)
+        except (ValidationError, DatabaseOperationError):
+            raise
         except Exception as e:
-            error_msg = f"Failed to create user in admin API: {str(e)}"
-            logger.error(error_msg, exc_info=True)
-            db.rollback()
-            raise ValueError(error_msg)
+            raise LibraryException(
+                message=f"An unexpected error occurred while creating user: {str(e)}",
+                error_code="USER_CREATION_ERROR"
+            ) from e
 
     def get_user_by_email(self, db: Session, email: str) -> Optional[User]:
         """Get a user by email."""
         try:
             return db.query(User).filter(User.email == email).first()
+        except SQLAlchemyError as e:
+            raise DatabaseOperationError(
+                message=f"Failed to fetch user by email: {str(e)}"
+            ) from e
         except Exception as e:
-            logger.error(f"Error querying user by email: {str(e)}", exc_info=True)
-            raise
+            raise LibraryException(
+                message=f"An unexpected error occurred while fetching user: {str(e)}",
+                error_code="USER_EMAIL_RETRIEVAL_ERROR"
+            ) from e
 
 # Create instance to be imported by other modules
 message_broker = MessageBroker(settings.RABBITMQ_URL)

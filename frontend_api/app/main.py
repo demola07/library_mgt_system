@@ -100,31 +100,6 @@ async def shutdown_event():
     
     logger.info("Shutdown complete")
 
-def custom_openapi():
-    if app.openapi_schema:
-        return app.openapi_schema
-    
-    openapi_schema = get_openapi(
-        title=app.title,
-        version=app.version,
-        description=app.description,
-        routes=app.routes,
-        tags=[
-            {"name": "books", "description": "Operations with books, including listing and filtering."},
-            {"name": "users", "description": "User management operations."},
-            {"name": "borrow", "description": "Book borrowing operations."},
-            {"name": "health", "description": "API health check endpoints."},
-        ],
-    )
-    
-    # Add security schemes if needed in the future
-    # openapi_schema["components"]["securitySchemes"] = {...}
-    
-    app.openapi_schema = openapi_schema
-    return app.openapi_schema
-
-app.openapi = custom_openapi
-
 # Global exception handlers
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):

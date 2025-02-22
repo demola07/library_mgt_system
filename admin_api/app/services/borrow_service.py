@@ -6,8 +6,15 @@ from ..models.user import User
 from ..schemas.borrow import BorrowCreate
 from shared.message_broker import MessageBroker
 from shared.message_types import MessageType
+from shared.exceptions import (
+    LibraryException,
+    DatabaseOperationError,
+    ResourceNotFoundError,
+    ValidationError
+)
 import logging
 from ..core.config import settings
+from sqlalchemy.exc import SQLAlchemyError
 
 logger = logging.getLogger(__name__)
 
@@ -16,21 +23,41 @@ class BorrowService:
         self.message_broker = message_broker
 
     async def create_borrow_record(self, db: Session, borrow_data: dict) -> BorrowRecord:
-        """Create a new borrow record from frontend message using email and ISBN."""
+        """Create a new borrow record from frontend message using email and ISBN.
+        
+        Args:
+            db: Database session
+            borrow_data: Dictionary containing user_email, book_isbn, and return_date
+            
+        Returns:
+            Created borrow record
+        """
         try:
             # Find user by email
-            user = db.query(User).filter(User.email == borrow_data["user_email"]).first()
-            if not user:
-                raise ValueError(f"User with email {borrow_data['user_email']} not found")
+            try:
+                user = db.query(User).filter(User.email == borrow_data["user_email"]).first()
+                if not user:
+                    raise ResourceNotFoundError("User", borrow_data["user_email"])
+            except SQLAlchemyError as e:
+                raise DatabaseOperationError(
+                    message="Failed to fetch user from database"
+                ) from e
 
             # Find book by ISBN
-            book = db.query(Book).filter(Book.isbn == borrow_data["book_isbn"]).first()
-            if not book:
-                raise ValueError(f"Book with ISBN {borrow_data['book_isbn']} not found")
+            try:
+                book = db.query(Book).filter(Book.isbn == borrow_data["book_isbn"]).first()
+                if not book:
+                    raise ResourceNotFoundError("Book", borrow_data["book_isbn"])
+            except SQLAlchemyError as e:
+                raise DatabaseOperationError(
+                    message="Failed to fetch book from database"
+                ) from e
 
             # Check if book is available
             if not book.available:
-                raise ValueError(f"Book with ISBN {borrow_data['book_isbn']} is not available")
+                raise ValidationError(
+                    message="Book is not available"
+                )
 
             # Create borrow record
             db_borrow = BorrowRecord(
@@ -51,19 +78,23 @@ class BorrowService:
                 db.commit()
                 db.refresh(db_borrow)
                 db.refresh(book)
+                
                 logger.info(f"Successfully created borrow record for book {book.isbn} and user {user.email}")
                 return db_borrow
 
-            except Exception as e:
+            except SQLAlchemyError as e:
                 db.rollback()
-                error_msg = f"Failed to create borrow record in admin_api: {str(e)}"
-                logger.error(error_msg)
-                raise ValueError(error_msg)
+                raise DatabaseOperationError(
+                    message="Failed to create borrow record"
+                ) from e
 
+        except (ResourceNotFoundError, ValidationError, DatabaseOperationError):
+            raise  # Re-raise these specific exceptions
         except Exception as e:
-            error_msg = f"Error in create_borrow_record: {str(e)}"
-            logger.error(error_msg)
-            raise ValueError(error_msg)
+            raise LibraryException(
+                message="Failed to process borrow request",
+                error_code="BORROW_CREATION_ERROR"
+            ) from e
 
 # Create instance to be imported by other modules
 message_broker = MessageBroker(settings.RABBITMQ_URL)
