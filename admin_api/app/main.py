@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 Base.metadata.create_all(bind=engine)
 
 # Initialize shared message broker
-message_broker = MessageBroker("amqp://guest:guest@rabbitmq:5672/")
+message_broker = MessageBroker(settings.RABBITMQ_URL)
 
 # Initialize services with shared message broker
 book_service = BookService(message_broker)

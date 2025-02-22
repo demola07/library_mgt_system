@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Path
 from sqlalchemy.orm import Session
 from typing import List, Optional
-import os
+from ...core.config import settings
 from ...core.database import get_db
 from ...schemas.book import BookResponse, BookList, BookCreate, BookDetail
 from ...services.book_service import BookService
@@ -12,8 +12,7 @@ router = APIRouter()
 
 # Dependency to get BookService instance
 def get_book_service():
-    rabbitmq_url = os.getenv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/")
-    return BookService(MessageBroker(rabbitmq_url=rabbitmq_url))
+    return BookService(MessageBroker(settings.RABBITMQ_URL))
 
 @router.get("/", response_model=PaginatedResponse[BookList])
 def list_available_books(

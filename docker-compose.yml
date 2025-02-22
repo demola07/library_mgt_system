@@ -7,12 +7,14 @@ services:
       dockerfile: docker/frontend/Dockerfile
     ports:
       - "8000:8000"
+    env_file:
+    - frontend_api/.env
     environment:
-      - POSTGRES_USER=frontend_user
-      - POSTGRES_PASSWORD=frontend_password
-      - POSTGRES_SERVER=frontend_db
-      - POSTGRES_DB=frontend_db
-      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      # - POSTGRES_USER=${POSTGRES_USER}
+      # - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      # - POSTGRES_SERVER=${POSTGRES_SERVER}
+      # - POSTGRES_DB=${POSTGRES_DB}
+      # - RABBITMQ_URL=${RABBITMQ_URL}
       - PYTHONPATH=/app
     depends_on:
       rabbitmq:
@@ -39,12 +41,14 @@ services:
       dockerfile: docker/admin/Dockerfile
     ports:
       - "8001:8000"
+    env_file:
+      - admin_api/.env
     environment:
-      - POSTGRES_USER=admin_user
-      - POSTGRES_PASSWORD=admin_password
-      - POSTGRES_SERVER=admin_db
-      - POSTGRES_DB=admin_db
-      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      # - POSTGRES_USER=${POSTGRES_USER}
+      # - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      # - POSTGRES_SERVER=${POSTGRES_SERVER}
+      # - POSTGRES_DB=${POSTGRES_DB}
+      # - RABBITMQ_URL=${RABBITMQ_URL}
       - PYTHONPATH=/app
     depends_on:
       rabbitmq:
@@ -67,10 +71,12 @@ services:
 
   frontend_db:
     image: postgres:15-alpine
-    environment:
-      - POSTGRES_USER=frontend_user
-      - POSTGRES_PASSWORD=frontend_password
-      - POSTGRES_DB=frontend_db
+    env_file:
+      - frontend_api/.env
+    # environment:
+    #   - POSTGRES_USER=frontend_user
+    #   - POSTGRES_PASSWORD=frontend_password
+    #   - POSTGRES_DB=frontend_db
     ports:
       - "5432:5432"
     volumes:
@@ -86,11 +92,13 @@ services:
       - backend
 
   admin_db:
-    image: postgres:15-alpine
-    environment:
-      - POSTGRES_USER=admin_user
-      - POSTGRES_PASSWORD=admin_password
-      - POSTGRES_DB=admin_db
+    image: postgres:15-alpine 
+    env_file:
+      - admin_api/.env
+    # environment:
+    #   - POSTGRES_USER=admin_user
+    #   - POSTGRES_PASSWORD=admin_password
+    #   - POSTGRES_DB=admin_db
     ports:
       - "5433:5432"
     volumes:

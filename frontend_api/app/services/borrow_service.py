@@ -14,6 +14,7 @@ from shared.exceptions import (
 from ..models.book import Book
 from ..models.user import User
 import logging
+from ..core.config import settings
 
 logger = logging.getLogger(__name__)
 

@@ -6,6 +6,7 @@ from app.models.user import User
 from app.models.borrow import BorrowRecord
 from app.schemas.borrow import BorrowCreate
 from shared.message_types import MessageType
+from shared.exceptions import ValidationError, ResourceNotFoundError, DatabaseOperationError, LibraryException
 
 class TestBorrowService:
     @pytest.fixture
@@ -87,7 +88,7 @@ class TestBorrowService:
             days=14
         )
 
-        with pytest.raises(ValueError) as exc_info:
+        with pytest.raises(ValidationError) as exc_info:
             await borrow_service.create_borrow_record(db_session, borrow_create)
         
         assert "not available" in str(exc_info.value)
@@ -108,7 +109,7 @@ class TestBorrowService:
             days=14
         )
 
-        with pytest.raises(ValueError) as exc_info:
+        with pytest.raises(ResourceNotFoundError) as exc_info:
             await borrow_service.create_borrow_record(db_session, borrow_create)
         
         assert "not found" in str(exc_info.value)
@@ -131,12 +132,12 @@ class TestBorrowService:
         
         # Mock db_session.commit to raise an exception
         def mock_commit():
-            raise Exception("Database error")
+            raise DatabaseOperationError("Database error")
         
         db_session.commit = mock_commit
 
-        with pytest.raises(ValueError) as exc_info:
+        with pytest.raises(DatabaseOperationError) as exc_info:
             await borrow_service.create_borrow_record(db_session, borrow_create)
         
-        assert "Failed to create borrow record" in str(exc_info.value)
+        assert "Database error" in str(exc_info.value)
         mock_message_broker.publish.assert_not_called() 

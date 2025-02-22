@@ -1,12 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from ...core.config import settings  # Import settings where your RABBITMQ_URL is defined
-
+from ...core.config import settings
 from ...core.database import get_db
 from ...schemas.borrow import Borrow, BorrowCreate
 from ...services.book_service import BookService
 from ...services.borrow_service import BorrowService
 from shared.message_broker import MessageBroker
+from pydantic import PositiveInt
 
 router = APIRouter()
 
@@ -20,18 +20,11 @@ def get_book_service(message_broker: MessageBroker = Depends(get_message_broker)
 def get_borrow_service(message_broker: MessageBroker = Depends(get_message_broker)):
     return BorrowService(message_broker)
 
-@router.post("/user/{user_id}/book/{book_id}",
-    response_model=Borrow,
-    summary="Borrow a book",
-    status_code=201,
-    responses={
-        404: {"description": "Book is not available or found"},
-    }
-)
-async def borrow_book(  # Make the endpoint async
-    user_id: int,  # Path parameter from URL
-    book_id: int,  # Path parameter from URL
-    days: int,     # Query parameter (?days=7)
+@router.post("/user/{user_id}/book/{book_id}")
+async def borrow_book(
+    user_id: PositiveInt,
+    book_id: PositiveInt,
+    days: PositiveInt,
     db: Session = Depends(get_db),
     book_service: BookService = Depends(get_book_service),
     borrow_service: BorrowService = Depends(get_borrow_service)
@@ -42,7 +35,7 @@ async def borrow_book(  # Make the endpoint async
     if not book or not book.available:
         raise HTTPException(
             status_code=404,
-            detail="Book is not available or found"
+            detail="Book is not found"
         )
     
     # Create borrow record

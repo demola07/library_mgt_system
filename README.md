@@ -1,14 +1,21 @@
 # Library Management System
 
-A distributed library management system built with FastAPI and PostgreSQL. The system consists of two independent microservices:
+A distributed library management system built with FastAPI, PostgreSQL and RabbitMQ. The system consists of two independent microservices and a shared folder to hold shared files between the two services:
 
 1. Frontend API - Handles user-facing operations like book browsing and borrowing
 2. Admin API - Manages administrative operations like book management and user oversight
+3. Shared - Shared components like message broker, message types, pagination, etc.
 
+
+### Video Demonstration
+
+For a visual overview of the Library Management System, you can watch the video demonstration. This video provides insights into the project setup, as well as the system's features and functionalities, showcasing the Frontend and Admin APIs.
+
+Here is a link to a [video demonstration of the project](https://www.google.com).
 ## Features
 
 ### Frontend API
-- User enrollment
+- User enrollment and broadcasting via RabbitMQ
 - Book catalogue browsing
 - Book filtering by publisher and category
 - Book borrowing system
@@ -17,7 +24,6 @@ A distributed library management system built with FastAPI and PostgreSQL. The s
 - Book catalogue management
 - User oversight
 - Borrowed books tracking
-- User creation broadcasting via RabbitMQ
 
 ## Tech Stack
 - FastAPI - Modern, fast web framework for building APIs
@@ -26,7 +32,7 @@ A distributed library management system built with FastAPI and PostgreSQL. The s
 - pytest - Testing framework
 - SQLAlchemy - ORM
 - Pydantic - Data validation
-- Redis - For service communication
+- RabbitMQ - Message Communication
 
 ## Project Structure
 ```
@@ -39,7 +45,7 @@ library_system/
 ├── frontend_api/
 │   ├── app/
 │   │   ├── api/
-│   │   │   ├── endpoints/
+│   │   │   ├── routes/
 │   │   │   │   ├── books.py
 │   │   │   │   ├── users.py
 │   │   │   │   ├── borrow.py
@@ -63,10 +69,22 @@ library_system/
 │   │       ├── borrow_service.py
 │   │       └── user_service.py
 │   └── tests/
+│   │   ├── unit/
+│   │   │   ├── test_book_service.py
+│   │   │   ├── test_borrow_service.py
+│   │   │   └── test_user_service.py
+│   │   │   └── conftest.py
+│   │   ├── integration/
+│   │   │   ├── test_book_integration.py
+│   │   │   ├── test_borrow_integration.py
+│   │       └── conftest.py
+│   │
+|   |___ .env
+|   
 ├── admin_api/
 │   ├── app/
 │   │   ├── api/
-│   │   │   ├── endpoints/
+│   │   │   ├── routes/
 │   │   │   │   ├── books.py
 │   │   │   │   ├── users.py
 │   │   │   │   ├── borrow.py
@@ -79,10 +97,12 @@ library_system/
 │   │   │   ├── book.py
 │   │   │   ├── user.py
 │   │   │   └── borrow.py
+│   │   │   └── __init__.py
 │   │   ├── schemas/
 │   │   │   ├── book.py
 │   │   │   ├── user.py
 │   │   │   └── borrow.py
+│   │   │   └── __init__.py
 │   │   └── services/
 │   │       ├── __init__.py
 │   │       ├── book_service.py
@@ -90,6 +110,17 @@ library_system/
 │   │       ├── borrow_service.py
 │   │       └── user_service.py
 │   └── tests/
+│   │   ├── unit/
+│   │   │   ├── test_book_service.py
+│   │   │   ├── test_borrow_service.py
+│   │   │   └── test_user_service.py
+│   │   │   └── conftest.py
+│   │   ├── integration/
+│   │   │   ├── test_book_routes.py
+│   │   │   ├── test_user_routes.py
+│   │   │   └── conftest.py
+│   │
+|   |___ .env
 ├── shared/
 │   ├── message_broker.py
 │   ├── message_types.py
@@ -108,17 +139,51 @@ library_system/
 
 ### Development Setup
 1. Clone the repository
+
+```bash
+git clone https://github.com/yourusername/library_management_system.git
+```
+
 2. Create and activate virtual environment:
+
 ```bash
 python -m venv venv
 source venv/bin/activate  # On Windows: .\venv\Scripts\activate
 ```
+
 3. Install dependencies:
+
 ```bash
 pip install -r requirements.txt
 ```
 
-### Local Development
+4. Configure environment variables:
+
+The contents of the .env,example file should be as follows:
+```bash
+# Frontend API
+POSTGRES_USER=<postgres_user>
+POSTGRES_PASSWORD=<postgres_password>
+POSTGRES_SERVER=<postgres_server>
+POSTGRES_DB=<postgres_db>
+RABBITMQ_URL=<rabbitmq_url>
+
+
+# Admin API
+POSTGRES_USER=<postgres_user>
+POSTGRES_PASSWORD=<postgres_password>
+POSTGRES_SERVER=<postgres_server>
+POSTGRES_DB=<postgres_db>
+RABBITMQ_URL=<rabbitmq_url>
+```
+
+Copy the .env.example file to .env and fill in the values.
+```bash
+cp .env.example .env
+```
+
+
+### How to run the services
 ```bash
 # Start the services in development mode
 docker-compose up --build
@@ -131,6 +196,15 @@ docker-compose restart <service_name>
 
 # Stop all services
 docker-compose down
+```
+
+Health check endpoints:
+```bash
+# Frontend API
+curl http://localhost:8000/api/v1/health
+
+# Admin API
+curl http://localhost:8001/api/v1/health
 ```
 
 ### Mock Data for Testing
@@ -189,58 +263,9 @@ You can verify the successful data creation and synchronization using these endp
 
 The script includes comprehensive logging to track the creation and synchronization process, helping diagnose any potential issues in the distributed system.
 
-### Production Deployment
-1. Configure environment variables:
-```bash
-# Frontend API
-export POSTGRES_USER=<postgres_user>
-export POSTGRES_PASSWORD=<postgres_password>
-export POSTGRES_SERVER=<postgres_server>
-export POSTGRES_DB=<postgres_db>
-
-
-# Admin API
-export POSTGRES_USER=<postgres_user>
-export POSTGRES_PASSWORD=<postgres_password>
-export POSTGRES_SERVER=<postgres_server>
-export POSTGRES_DB=<postgres_db>
-
-```
-
-2. Build and start services:
-```bash
-# Build images
-docker-compose build --no-cache
-
-# Start services in detached mode
-docker-compose up -d
-
-# Verify services are running
-docker-compose ps
-```
-
-3. Health check endpoints:
-```bash
-# Frontend API
-curl http://localhost:8000/api/v1/health
-
-# Admin API
-curl http://localhost:8001/api/v1/health
-```
-
 ### Running Tests
 
 The project has both unit and integration tests for each API service. Unit tests focus on testing individual components in isolation, while integration tests verify the interaction between different parts of the system.
-
-#### Test Dependencies
-First, install the required test packages:
-```bash
-# Install test dependencies inside the container
-docker compose exec frontend_api pip install pytest-cov pytest-asyncio
-
-# For admin API
-docker compose exec admin_api pip install pytest-cov pytest-asyncio
-```
 
 #### Frontend API Tests
 ```bash
@@ -275,36 +300,10 @@ docker compose exec admin_api pytest --cov=app --cov-report=term-missing tests/
 ## API Documentation
 
 After running the services, interactive API documentation (Swagger UI) will be available at:
-- Frontend API: http://localhost:8000/docs
-- Admin API: http://localhost:8001/docs
+- Frontend API: http://localhost:8000/docs or http://localhost:8000/redoc
+- Admin API: http://localhost:8001/docs or http://localhost:8001/redoc
 
 ### Frontend API Endpoints
-
-#### Books
-- `GET /api/v1/books/`
-  - List all books with optional filtering
-  - Query Parameters:
-    - `skip` (int): Number of books to skip (pagination)
-    - `limit` (int): Maximum number of books to return (1-1000)
-    - `publisher` (string): Filter by publisher (e.g., PENGUIN, HARPER_COLLINS)
-    - `category` (string): Filter by category (e.g., FICTION, NON_FICTION)
-    - `available_only` (bool): Only show available books
-
-- `GET /api/v1/books/{book_id}`
-  - Get detailed information about a specific book
-  - Response includes:
-    - Book details (title, author, ISBN)
-    - Current availability status
-    - Expected return date (if borrowed)
-    - Publisher and category information
-
-- `GET /api/v1/books/publishers/`
-  - Get list of all publishers
-  - Returns: List of publisher names (e.g., ["PENGUIN", "HARPER_COLLINS"])
-
-- `GET /api/v1/books/categories/`
-  - Get list of all book categories
-  - Returns: List of category names (e.g., ["FICTION", "NON_FICTION"])
 
 #### Users
 - `POST /api/v1/users/`
@@ -319,4 +318,69 @@ After running the services, interactive API documentation (Swagger UI) will be a
     ```
   - Email must be unique
 
-- `GET /api/v1/users/me/{user_id}`
+#### Books
+
+- `GET /api/v1/books/`
+  - List all available books with optional filtering
+  - Query Parameters:
+    - `skip` (int): Number of books to skip (pagination)
+    - `limit` (int): Maximum number of books to return (1-1000)
+    - `publisher` (string): Filter by publisher (e.g., PENGUIN, HARPER_COLLINS)
+    - `category` (string): Filter by category (e.g., FICTION, NON_FICTION)
+
+- `GET /api/v1/books/{book_id}`
+  - et a single book by its ID
+  - Response includes:
+    - Book details (title, author, ISBN)
+    - Publisher and category information
+
+- `GET /api/v1/books/publishers/`
+  - Get list of all publishers
+  - Returns: List of publisher names (e.g., ["PENGUIN", "HARPER_COLLINS"])
+
+- `GET /api/v1/books/categories/`
+  - Get list of all book categories
+  - Returns: List of category names (e.g., ["FICTION", "NON_FICTION"])
+
+- `POST /api/v1/borrow/user/{user_id}/book/{book_id}?days=7`
+  - Borrow book by ID (specify how long you want it for in days)
+  - Query Parameter:
+    - `days` (PositiveInt): How long you want to borrow book
+
+
+### Admin API Endpoints
+
+- `POST /api/v1/books/bulk`
+  - Add new books to the catalogue
+  - Request Body:
+    ```json
+    [
+      {
+        "title": "Design Patterns: Elements of Reusable Object-Oriented Software",
+        "author": "Erich Gamma, Richard Helm, Ralph Johnson, John Vlissides",
+        "isbn": "9780201633610",
+        "publisher": "Addison-Wesley",
+        "category": "Software Architecture"
+      },
+      {
+        "title": "Deep Learning",
+        "author": "Ian Goodfellow, Yoshua Bengio, Aaron Courville",
+        "isbn": "9780262035613",
+        "publisher": "MIT Press",
+        "category": "Artificial Intelligence"
+      }
+    ]
+    ```
+  - isbn must be unique
+
+- `DELETE /api/v1/books/{book_id}`
+  - Remove a book from the catalogue.
+
+- `GET /api/v1/users/`
+  - Fetch/List users enrolled in the library.
+
+- `GET /api/v1/users/borrowed-books`
+  - Fetch/List users and the books they have borrowed
+
+- `GET /api/v1/books/unavailable`
+  - Fetch/List the books that are not available for borrowing (showing the day it will be available (return_date))
