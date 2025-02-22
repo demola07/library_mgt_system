@@ -9,6 +9,7 @@ from datetime import datetime
 import logging
 from shared.pagination import PaginatedResponse
 from ..schemas.user import UserResponse, UserWithBorrowedBooksResponse
+from ..core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -222,5 +223,5 @@ class UserService:
             raise
 
 # Create instance to be imported by other modules
-message_broker = MessageBroker("amqp://guest:guest@rabbitmq:5672/")
+message_broker = MessageBroker(settings.RABBITMQ_URL)
 user_service = UserService(message_broker)

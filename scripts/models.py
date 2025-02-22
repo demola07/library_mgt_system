@@ -13,7 +13,6 @@ class Book(Base):
     publisher = Column(String)
     category = Column(String)
     available = Column(Boolean, default=True)
-    return_date = Column(Date, nullable=True)
 
     borrow_records = relationship("BorrowRecord", back_populates="book")
 

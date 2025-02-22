@@ -3,6 +3,7 @@ from ..models.user import User
 from ..schemas.user import UserCreate
 from shared.message_broker import MessageBroker
 from shared.message_types import MessageType
+from ..core.config import settings
 
 class UserService:
     def __init__(self, message_broker: MessageBroker):
@@ -49,5 +50,5 @@ class UserService:
             raise ValueError(f"Failed to create user: {str(e)}")
 
 # Create instance to be imported by other modules
-message_broker = MessageBroker("amqp://guest:guest@rabbitmq:5672/")
+message_broker = MessageBroker(settings.RABBITMQ_URL)
 user_service = UserService(message_broker)

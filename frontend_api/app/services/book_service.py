@@ -46,6 +46,16 @@ class BookService:
                 query = query.filter(Book.available == True)
             
             total = query.count()
+            
+            # Return empty paginated response if no books found
+            if total == 0:
+                return PaginatedResponse.create(
+                    items=[],
+                    total=0,
+                    page=page,
+                    limit=limit
+                )
+            
             skip = (page - 1) * limit
             
             books = (
@@ -80,6 +90,16 @@ class BookService:
         try:
             query = db.query(Book).filter(Book.publisher == publisher)
             total = query.count()
+            
+            # Return empty paginated response if no books found
+            if total == 0:
+                return PaginatedResponse.create(
+                    items=[],
+                    total=0,
+                    page=page,
+                    limit=limit
+                )
+            
             skip = (page - 1) * limit
             
             books = (
@@ -114,6 +134,16 @@ class BookService:
         try:
             query = db.query(Book).filter(Book.category == category)
             total = query.count()
+            
+            # Return empty paginated response if no books found
+            if total == 0:
+                return PaginatedResponse.create(
+                    items=[],
+                    total=0,
+                    page=page,
+                    limit=limit
+                )
+            
             skip = (page - 1) * limit
             
             books = (

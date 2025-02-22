@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from .endpoints import users, books, borrow, health
+from .routes import users, books, borrow, health
 
 api_router = APIRouter()
 

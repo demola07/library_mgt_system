@@ -11,6 +11,7 @@ from datetime import datetime
 from sqlalchemy.orm import joinedload
 from shared.pagination import PaginatedResponse
 from sqlalchemy import or_
+from ..core.config import settings
 
 # Add shared directory to Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))
@@ -216,5 +217,5 @@ class BookService:
             raise ValueError(f"Error fetching unavailable books: {str(e)}") from e
 
 # Create instance to be imported by other modules
-message_broker = MessageBroker("amqp://guest:guest@rabbitmq:5672/")
+message_broker = MessageBroker(settings.RABBITMQ_URL)
 book_service = BookService(message_broker)

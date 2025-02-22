@@ -104,7 +104,7 @@ library_system/
 - Docker and Docker Compose
 - Python 3.11+
 - PostgreSQL 15
-- Redis 7
+- RabbitMQ
 
 ### Development Setup
 1. Clone the repository
@@ -134,48 +134,77 @@ docker-compose down
 ```
 
 ### Mock Data for Testing
-The project includes a script to generate mock data for testing the API. This creates sample books, users, and borrow records.
+The project includes a script to generate mock data for testing the distributed library management system. This script demonstrates the inter-service communication and data synchronization between the frontend and admin services.
 
-To load mock data:
+#### Setting up the Mock Data Script
+
+1. Copy the mock data script to the container:
 ```bash
-# Activate your virtual environment first
-source venv/bin/activate  # On Windows: .\venv\Scripts\activate
+# Create the scripts directory in the container if it doesn't exist
+docker compose exec frontend_api mkdir -p /app/scripts
 
-# Run the mock data script
-python -m scripts.mock_data
+# Copy the mock data script from your local machine to the container
+docker compose cp scripts/mock_data.py frontend_api:/app/scripts/
 ```
 
-The script will create:
+2. Run the mock data script:
+```bash
+# Execute the script inside the frontend_api container
+docker compose exec frontend_api python /app/scripts/mock_data.py
+```
+
+#### Data Creation and Synchronization
+The script demonstrates the distributed nature of the system by:
+
+1. **User Creation Flow**:
+   - Creates users through the Frontend API
+   - Frontend API publishes user creation events to RabbitMQ
+   - Admin API consumes these events and synchronizes its user database
+   - Result: Users exist in both services' databases
+
+2. **Book Creation Flow**:
+   - Creates books through the Admin API's bulk endpoint
+   - Admin API publishes book creation events to RabbitMQ
+   - Frontend API consumes these events and synchronizes its book catalogue
+   - Result: Books are available in both services' databases
+
+#### Sample Data Created
+The script generates:
+- 3 sample users:
+  - john.doe2@example.com
+  - jane.smith2@example.com
+  - bob.wilson2@example.com
 - 7 books across different categories (technology, business, fiction, etc.)
-- 3 sample users
-- 3 random borrow records
 
-You can then test the API endpoints:
-1. List all books: `GET /api/v1/books/`
-2. View borrowed books: `GET /api/v1/books/unavailable/`
-3. List users and their borrowed books: `GET /api/v1/users/borrowed-books/`
+#### Verification Endpoints
+You can verify the successful data creation and synchronization using these endpoints:
 
-Sample user credentials for testing:
-- Email: john.doe@example.com
-- Email: jane.smith@example.com
-- Email: bob.wilson@example.com
+1. Frontend API:
+   - List all available books: `GET /api/v1/books/`
+   - Demonstrates successful book sync from Admin API
+
+2. Admin API:
+   - List users enrolled in the library: `GET /api/v1/users/`
+   - Demonstrates successful user sync from Frontend API
+
+The script includes comprehensive logging to track the creation and synchronization process, helping diagnose any potential issues in the distributed system.
 
 ### Production Deployment
 1. Configure environment variables:
 ```bash
 # Frontend API
-export POSTGRES_USER=frontend_user
-export POSTGRES_PASSWORD=<secure_password>
-export POSTGRES_SERVER=frontend_db
-export POSTGRES_DB=frontend_db
-export REDIS_URL=redis://redis:6379/0
+export POSTGRES_USER=<postgres_user>
+export POSTGRES_PASSWORD=<postgres_password>
+export POSTGRES_SERVER=<postgres_server>
+export POSTGRES_DB=<postgres_db>
+
 
 # Admin API
-export POSTGRES_USER=admin_user
-export POSTGRES_PASSWORD=<secure_password>
-export POSTGRES_SERVER=admin_db
-export POSTGRES_DB=admin_db
-export REDIS_URL=redis://redis:6379/0
+export POSTGRES_USER=<postgres_user>
+export POSTGRES_PASSWORD=<postgres_password>
+export POSTGRES_SERVER=<postgres_server>
+export POSTGRES_DB=<postgres_db>
+
 ```
 
 2. Build and start services:
@@ -200,15 +229,47 @@ curl http://localhost:8001/api/v1/health
 ```
 
 ### Running Tests
-```bash
-# Run all tests
-pytest
 
-# Run specific test file
-pytest tests/test_api.py
+The project has both unit and integration tests for each API service. Unit tests focus on testing individual components in isolation, while integration tests verify the interaction between different parts of the system.
+
+#### Test Dependencies
+First, install the required test packages:
+```bash
+# Install test dependencies inside the container
+docker compose exec frontend_api pip install pytest-cov pytest-asyncio
+
+# For admin API
+docker compose exec admin_api pip install pytest-cov pytest-asyncio
+```
+
+#### Frontend API Tests
+```bash
+# Run all frontend tests
+docker compose exec frontend_api pytest -v
+
+# Run only unit tests
+docker compose exec frontend_api pytest tests/unit -v
+
+# Run only integration tests
+docker compose exec frontend_api pytest tests/integration -v
 
 # Run with coverage report
-pytest --cov=app tests/
+docker compose exec frontend_api pytest --cov=app --cov-report=term-missing tests/
+```
+
+#### Admin API Tests
+```bash
+# Run all admin tests
+docker compose exec admin_api pytest -v
+
+# Run only unit tests
+docker compose exec admin_api pytest tests/unit -v
+
+# Run only integration tests
+docker compose exec admin_api pytest tests/integration -v
+
+# Run with coverage report
+docker compose exec admin_api pytest --cov=app --cov-report=term-missing tests/
 ```
 
 ## API Documentation
@@ -259,122 +320,3 @@ After running the services, interactive API documentation (Swagger UI) will be a
   - Email must be unique
 
 - `GET /api/v1/users/me/{user_id}`
-  - Get user information
-  - Returns user's personal information and account creation timestamp
-
-#### Borrowing
-- `POST /api/v1/borrow/{user_id}/borrow/{book_id}`
-  - Borrow a book
-  - Query Parameters:
-    - `days` (int): Number of days to borrow (1-30)
-  - Responses:
-    - 200: Successfully borrowed
-    - 400: Book unavailable
-    - 404: Book/User not found
-
-### Admin API Endpoints
-
-#### Books Management
-- `POST /api/v1/books/`
-  - Add a new book to the library
-  - Requires book details including ISBN, title, author
-
-- `PUT /api/v1/books/{book_id}`
-  - Update book information
-  - Can modify title, author, category, etc.
-
-- `DELETE /api/v1/books/{book_id}`
-  - Remove a book from the library
-
-#### User Management
-- `GET /api/v1/users/`
-  - List all users
-  - Supports pagination
-
-- `GET /api/v1/users/{user_id}/borrows`
-  - View user's borrowing history
-
-#### Health Checks
-- `GET /api/v1/health`
-  - Check service health
-  - Verifies database and Redis connections
-  - Returns service status and uptime
-
-#### Borrow Management
-- `GET /api/v1/borrows/`
-  - List all borrows
-  - Query Parameters:
-    - `page` (integer, default: 1)
-    - `limit` (integer, default: 10)
-    - `user_id` (integer, optional): Filter by user
-    - `overdue` (boolean, optional): Filter overdue borrows
-  - Response:
-    - `items`: List of borrow records
-    - `total`: Total number of borrows
-    - `page`: Current page number
-    - `limit`: Number of borrows per page
-    - `pages`: Total number of pages
-
-## Message Types
-
-The system uses RabbitMQ for service communication with the following message types:
-
-```python
-BOOKS_CREATED = "books.created"      # Admin -> Frontend
-BOOK_DELETED = "book.deleted"        # Admin -> Frontend
-BOOK_BORROWED = "book.borrowed"      # Frontend -> Admin
-USER_CREATED = "user.created"        # Frontend -> Admin
-```
-
-## Service Communication
-
-### BookSyncService
-Handles synchronization of book data between admin and frontend APIs:
-- Listens for book creation/deletion events from admin API
-- Updates frontend database accordingly
-- Maintains data consistency across services
-
-### BorrowService
-Manages book borrowing operations:
-- Creates borrow records
-- Updates book availability
-- Notifies admin API about borrowed books
-- Handles return date calculations
-
-## Monitoring and Maintenance
-
-### Logs
-```bash
-# View logs for all services
-docker-compose logs
-
-# View logs for specific service
-docker-compose logs frontend_api
-
-# Follow logs in real-time
-docker-compose logs -f
-```
-
-### Database Management
-```bash
-# Access Frontend database
-docker-compose exec frontend_db psql -U frontend_user -d frontend_db
-
-# Access Admin database
-docker-compose exec admin_db psql -U admin_user -d admin_db
-
-# Create database backup
-docker-compose exec frontend_db pg_dump -U frontend_user frontend_db > backup.sql
-```
-
-### Redis Management
-```bash
-# Access Redis CLI
-docker-compose exec redis redis-cli
-
-# Monitor Redis events
-docker-compose exec redis redis-cli monitor
-```
-
-## License
-MIT

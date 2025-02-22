@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 # API endpoints - using Docker service names
 FRONTEND_API = "http://bookstore-frontend_api-1:8000/api/v1"
-ADMIN_API = "http://bookstore-admin_api-1:8000/api/v1"
+ADMIN_API = "http://bookstore-admin_api-1:8000/api/v1"  # Note: using port 8000, not 8001
 
 # Sample data
 BOOKS = [

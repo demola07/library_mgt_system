@@ -12,7 +12,6 @@ class Settings(BaseSettings):
     POSTGRES_DB: str
     DATABASE_URL: Optional[str] = None
 
-    REDIS_URL: str
     RABBITMQ_URL: str
 
     class Config:

@@ -7,6 +7,7 @@ from ..schemas.borrow import BorrowCreate
 from shared.message_broker import MessageBroker
 from shared.message_types import MessageType
 import logging
+from ..core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -65,5 +66,5 @@ class BorrowService:
             raise ValueError(error_msg)
 
 # Create instance to be imported by other modules
-message_broker = MessageBroker("amqp://guest:guest@rabbitmq:5672/")
+message_broker = MessageBroker(settings.RABBITMQ_URL)
 borrow_service = BorrowService(message_broker) 

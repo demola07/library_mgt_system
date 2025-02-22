@@ -1,17 +1,36 @@
-/venv
-.env
+# Coverage files
+frontend_api/.coverage
+admin_api/.coverage
+**/htmlcov/
 
-# Python
+# Python cache files
 __pycache__/
 *.py[cod]
 *$py.class
-*.so
+
+# Virtual environment
+venv/
+env/
+
+# IDE files
+.idea/
+.vscode/
+
+# Environment variables
+.env
+.env.*
+
+# Logs
+*.log
+
+# Test cache
+.pytest_cache/
 
 # Docker
-*.log
 *.log.*
 *.log.*.*
 *.log.*.*.*
 *.log.*.*.*.*
 *.log.*.*.*.*.* 
 
+*.so

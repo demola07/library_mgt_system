@@ -5,12 +5,13 @@ from ..core.database import SessionLocal
 from ..schemas.book import BookCreate
 from contextlib import contextmanager
 import logging
+from ..core.config import settings
 
 logger = logging.getLogger(__name__)
 
 class BookSyncService:
     def __init__(self):
-        self.message_broker = MessageBroker("amqp://guest:guest@rabbitmq:5672/")
+        self.message_broker = MessageBroker(settings.RABBITMQ_URL)
         self.book_service = BookService(self.message_broker)
 
     async def start(self):
