@@ -16,6 +16,7 @@ from shared.exceptions import (
     ResourceNotFoundError,
     ValidationError
 )
+from sqlalchemy.exc import SQLAlchemyError
 
 logger = logging.getLogger(__name__)
 
@@ -212,9 +213,10 @@ class UserService:
                 
             except SQLAlchemyError as e:
                 db.rollback()
-                raise DatabaseOperationError(
-                    message=f"Failed to create user: {str(e)}"
-                ) from e
+                raise LibraryException(
+                    message=f"An unexpected error occurred while creating user: {str(e)}",
+                    error_code="USER_CREATION_ERROR"
+                )
             
         except (ValidationError, DatabaseOperationError):
             raise
@@ -229,14 +231,10 @@ class UserService:
         try:
             return db.query(User).filter(User.email == email).first()
         except SQLAlchemyError as e:
-            raise DatabaseOperationError(
-                message=f"Failed to fetch user by email: {str(e)}"
-            ) from e
-        except Exception as e:
             raise LibraryException(
-                message=f"An unexpected error occurred while fetching user: {str(e)}",
-                error_code="USER_EMAIL_RETRIEVAL_ERROR"
-            ) from e
+                message=f"An unexpected error occurred while fetching user by email: {str(e)}",
+                error_code="USER_FETCH_ERROR"
+            )
 
 # Create instance to be imported by other modules
 message_broker = MessageBroker(settings.RABBITMQ_URL)
