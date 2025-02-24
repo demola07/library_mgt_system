@@ -141,7 +141,7 @@ library_system/
 1. Clone the repository
 
 ```bash
-git clone https://github.com/yourusername/library_management_system.git
+git clone https://github.com/demola07/library_mgt_system
 ```
 
 2. Create and activate virtual environment:
