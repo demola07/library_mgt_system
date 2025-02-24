@@ -12,6 +12,7 @@ from shared.exceptions import (
     ResourceNotFoundError,
     MessageBrokerError
 )
+from sqlalchemy.exc import SQLAlchemyError
 import logging
 
 logger = logging.getLogger(__name__)
@@ -226,10 +227,11 @@ class BookService:
             
             return db_books
             
-        except DatabaseOperationError:
-            raise
-        except Exception as e:
-            raise LibraryException(f"An unexpected error occurred while creating books: {str(e)}")
+        except SQLAlchemyError as e:
+            raise LibraryException(
+                message=f"An unexpected error occurred while creating books: {str(e)}",
+                error_code="BOOK_CREATION_ERROR"
+            )
 
     async def delete_book_by_isbn(self, db: Session, isbn: str) -> bool:
         """Delete a book by its ISBN."""
