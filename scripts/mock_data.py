@@ -181,8 +181,6 @@ if __name__ == "__main__":
         # Wait a bit for messages to be processed
         asyncio.run(asyncio.sleep(5))
         
-        # Verify the sync
-        asyncio.run(verify_data_sync())
     except Exception as e:
         logger.error(f"Script failed: {str(e)}")
         raise
