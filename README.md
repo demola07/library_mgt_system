@@ -11,7 +11,7 @@ A distributed library management system built with FastAPI, PostgreSQL and Rabbi
 
 For a visual overview of the Library Management System, you can watch the video demonstration. This video provides insights into the project setup, as well as the system's features and functionalities, showcasing the Frontend and Admin APIs.
 
-Here is a link to a [video demonstration of the project](https://www.google.com).
+Here is a link to a [video demonstration of the project](https://drive.google.com/file/d/1KMo-8qMBhD3O_LQNDaKhbEbevHjsS3jJ/view?usp=sharing).
 ## Features
 
 ### Frontend API
