@@ -137,66 +137,56 @@ library_system/
 - PostgreSQL 15
 - RabbitMQ
 
-### Development Setup
-1. Clone the repository
+### Development Setup with Docker
+
+1. Clone the repository:
 
 ```bash
 git clone https://github.com/demola07/library_mgt_system
 ```
 
-2. Create and activate virtual environment:
+2. Change into the repository directory:
 
 ```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: .\venv\Scripts\activate
+cd library_mgt_system
 ```
 
-3. Install dependencies:
+3. Configure Environment Variables:
+
+- Rename the `.env.example` file to `.env` in both the `frontend_api` and `admin_api` directories:
 
 ```bash
-pip install -r requirements.txt
+mv frontend_api/.env.example frontend_api/.env
+mv admin_api/.env.example admin_api/.env
 ```
 
-4. Configure environment variables:
+- Open each `.env` file and fill in the necessary environment variables as required for your setup.
 
-The contents of the .env,example file should be as follows:
+4. Build and start the Docker containers:
+
 ```bash
-# Frontend API
-POSTGRES_USER=<postgres_user>
-POSTGRES_PASSWORD=<postgres_password>
-POSTGRES_SERVER=<postgres_server>
-POSTGRES_DB=<postgres_db>
-RABBITMQ_URL=<rabbitmq_url>
-
-
-# Admin API
-POSTGRES_USER=<postgres_user>
-POSTGRES_PASSWORD=<postgres_password>
-POSTGRES_SERVER=<postgres_server>
-POSTGRES_DB=<postgres_db>
-RABBITMQ_URL=<rabbitmq_url>
-```
-
-Copy the .env.example file to .env and fill in the values.
-```bash
-cp .env.example .env
-```
-
-
-### How to run the services
-```bash
-# Start the services in development mode
 docker-compose up --build
+```
 
-# View logs
-docker-compose logs -f
+5. Access the application:
 
-# Restart a specific service
-docker-compose restart <service_name>
+- The application should now be running and accessible at
 
-# Stop all services
+  - frontend_api: `http://localhost:8000/api/v1/`
+  - admin_api: `http://localhost:8001/api/v1/`
+
+6. Stopping the containers:
+
+- To stop the running containers, use:
+
+```bash
 docker-compose down
 ```
+
+### Additional Notes
+
+- Ensure Docker and Docker Compose are installed on your system.
+- You can modify the `docker-compose.yml` file to change configurations as needed.
 
 Health check endpoints:
 ```bash

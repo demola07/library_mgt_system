@@ -33,4 +33,5 @@ env/
 *.log.*.*.*.*
 *.log.*.*.*.*.* 
 
-*.so
+*admin_api/.env
+*frontend_api/.env

@@ -19,6 +19,7 @@ async def health_check(db: Session = Depends(get_db)):
             raise Exception("RabbitMQ connection is closed")
         
         return {
+            "service": "frontend_api",
             "status": "healthy",
             "database": "connected",
             "rabbitmq": "connected"
