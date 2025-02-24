@@ -6,6 +6,7 @@ from app.services.borrow_service import BorrowService
 from app.models.book import Book
 from app.models.user import User
 from app.models.borrow import BorrowRecord
+from shared.exceptions import ResourceNotFoundError, ValidationError
 
 class TestBorrowService:
     @pytest.fixture
@@ -78,8 +79,8 @@ class TestBorrowService:
             "return_date": date.today()
         }
         
-        # Verify borrow attempt raises error
-        with pytest.raises(ValueError, match=f"Book with ISBN {test_book.isbn} is not available"):
+        # Verify borrow attempt raises ValidationError
+        with pytest.raises(ValidationError, match="Book is not available"):
             await borrow_service.create_borrow_record(db_session, borrow_data)
 
     @pytest.mark.asyncio
@@ -94,8 +95,8 @@ class TestBorrowService:
             "return_date": date.today()
         }
         
-        # Verify borrow attempt raises error
-        with pytest.raises(ValueError, match="Book with ISBN 999-999-999 not found"):
+        # Verify borrow attempt raises ResourceNotFoundError
+        with pytest.raises(ResourceNotFoundError, match="Book with identifier 999-999-999 not found"):
             await borrow_service.create_borrow_record(db_session, borrow_data)
 
     @pytest.mark.asyncio
@@ -110,6 +111,6 @@ class TestBorrowService:
             "return_date": date.today()
         }
         
-        # Verify borrow attempt raises error
-        with pytest.raises(ValueError, match="User with email nonexistent@example.com not found"):
+        # Verify borrow attempt raises ResourceNotFoundError
+        with pytest.raises(ResourceNotFoundError, match="User with identifier nonexistent@example.com not found"):
             await borrow_service.create_borrow_record(db_session, borrow_data) 
