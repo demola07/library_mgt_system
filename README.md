@@ -300,8 +300,8 @@ docker compose exec admin_api pytest --cov=app --cov-report=term-missing tests/
 ## API Documentation
 
 After running the services, interactive API documentation (Swagger UI) will be available at:
-- Frontend API: http://localhost:8000/docs or http://localhost:8000/redoc
-- Admin API: http://localhost:8001/docs or http://localhost:8001/redoc
+- Frontend API: http://localhost:8000/api/v1/docs or http://localhost:8000/api/v1/redoc
+- Admin API: http://localhost:8001/api/v1/docs or http://localhost:8001/api/v1/redoc
 
 ### Frontend API Endpoints
 
