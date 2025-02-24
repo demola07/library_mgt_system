@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
 from datetime import date, timedelta
 from ..models.borrow import BorrowRecord
 from ..schemas.borrow import BorrowCreate
@@ -83,7 +84,10 @@ class BorrowService:
         except (ResourceNotFoundError, ValidationError, DatabaseOperationError, MessageBrokerError):
             raise
         except Exception as e:
-            raise LibraryException(f"An unexpected error occurred while creating borrow record: {str(e)}")
+            raise LibraryException(
+                message=f"An unexpected error occurred while creating borrow record: {str(e)}",
+                error_code="UNEXPECTED_ERROR"
+            )
 
 # Create instance to be imported by other modules
 message_broker = MessageBroker(settings.RABBITMQ_URL)
